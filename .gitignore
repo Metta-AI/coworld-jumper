@@ -1,0 +1,5 @@
+.DS_Store
+nimcache/
+out/
+/jumper
+/dalli
