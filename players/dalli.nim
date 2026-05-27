@@ -6,8 +6,7 @@ import
 const
   DefaultAddress = "localhost"
   DefaultPort = 8080
-  EngineUrlEnv = "COGAMES_ENGINE_WS_URL"
-  LegacyEngineUrlEnv = "COWORLD_PLAYER_WS_URL"
+  EngineWsEnv = "COGAMES_ENGINE_WS_URL"
   MaxDrainMessages = 64
   ReconnectDelayMs = 250
   WorldTileSize = 32
@@ -137,9 +136,7 @@ proc queryEscape(value: string): string =
 
 proc engineUrlFromEnv(): string =
   ## Returns the runner-provided player websocket URL.
-  result = getEnv(EngineUrlEnv)
-  if result.len == 0:
-    result = getEnv(LegacyEngineUrlEnv)
+  result = getEnv(EngineWsEnv)
 
 proc appendQueryParam(
   url: var string,
