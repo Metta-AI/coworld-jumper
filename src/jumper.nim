@@ -2344,8 +2344,8 @@ proc update(config: var RunConfig, jsonText: string) =
 when isMainModule:
   var
     config = RunConfig(
-      address: DefaultHost,
-      port: DefaultPort,
+      address: cogameHost(DefaultHost),
+      port: cogamePort(DefaultPort),
       seed: DefaultSeed,
       maxTicks: DefaultMaxTicks,
       maxGames: DefaultMaxGames,
