@@ -2,7 +2,7 @@ import
   std/[algorithm, json, locks, monotimes, os, parseopt, random, strutils,
     tables, times],
   mummy, pixie, supersnappy,
-  bitworld/aseprite, bitworld/client, bitworld/cogame_runtime, bitworld/tiled, bitworld/pixelfonts,
+  bitworld/aseprite, bitworld/client, bitworld/runtime, bitworld/tiled, bitworld/pixelfonts,
   bitworld/protocol, bitworld/server
 
 const
