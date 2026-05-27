@@ -50,4 +50,4 @@ COPY --from=build /bin/jumper /bin/jumper
 COPY data ./data
 COPY coworld_manifest.json .
 
-CMD ["/bin/jumper", "--address:0.0.0.0", "--port:8080"]
+CMD ["/bin/jumper"]

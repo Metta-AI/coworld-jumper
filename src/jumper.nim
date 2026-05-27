@@ -1,7 +1,7 @@
 import
-  std/[algorithm, json, locks, monotimes, os, parseopt, random, strutils,
+  std/[algorithm, json, locks, monotimes, os, random, strutils,
     tables, times],
-  mummy, pixie, supersnappy,
+  jsony, mummy, pixie, supersnappy,
   bitworld/aseprite, bitworld/client, bitworld/runtime, bitworld/tiled, bitworld/pixelfonts,
   bitworld/protocol, bitworld/server
 
@@ -40,6 +40,8 @@ const
   HealthzPath = "/healthz"
   WebSocketPath = "/player"
   GlobalWebSocketPath = "/global"
+  AdminWebSocketPath = "/admin"
+  ReplayWebSocketPath = "/replay"
   SkyColor = 14'u8
   PlayerColors = [3'u8, 7, 8, 14, 4, 11]
   DeathY = LevelHeightPixels + WorldTileSize * 2
@@ -2004,10 +2006,18 @@ proc isPlayerStaticRoute(route: string): bool =
   case route
   of PlayerClientRoute, PlayerClientHtmlRoute,
       GlobalClientRoute, GlobalClientHtmlRoute,
+      AdminClientRoute, AdminClientHtmlRoute,
+      CoworldReplayClientRoute,
       SnappyClientRoute, SnappyClientPath:
     true
   else:
     false
+
+proc isGlobalSocketPath(path: string): bool =
+  ## Returns true for global viewer websocket endpoints.
+  path == GlobalWebSocketPath or
+    path == AdminWebSocketPath or
+    path == ReplayWebSocketPath
 
 proc clientStaticBody(route: string): string =
   ## Returns the embedded BitWorld client body for one route.
@@ -2075,8 +2085,8 @@ proc httpHandler(request: Request) =
   elif request.path == WebSocketPath and request.httpMethod == "GET" and
       not request.isWebSocketUpgrade():
     discard request.serveClientFile(GlobalClientRoute)
-  elif request.path == GlobalWebSocketPath and request.httpMethod == "GET" and
-      not request.isWebSocketUpgrade():
+  elif request.path.isGlobalSocketPath() and
+      request.httpMethod == "GET" and not request.isWebSocketUpgrade():
     discard request.serveClientFile(GlobalClientRoute)
   elif request.path == WebSocketPath and request.httpMethod == "GET" and
       request.isWebSocketUpgrade():
@@ -2099,8 +2109,8 @@ proc httpHandler(request: Request) =
         appState.playerNames[websocket] = name
         appState.inputMasks[websocket] = 0
         appState.lastAppliedMasks[websocket] = 0
-  elif request.path == GlobalWebSocketPath and request.httpMethod == "GET" and
-      request.isWebSocketUpgrade():
+  elif request.path.isGlobalSocketPath() and
+      request.httpMethod == "GET" and request.isWebSocketUpgrade():
     let websocket = request.upgradeToWebSocket()
     {.gcsafe.}:
       withLock appState.lock:
@@ -2157,7 +2167,8 @@ proc runServerLoop*(
   seed = DefaultSeed,
   maxTicks = DefaultMaxTicks,
   maxGames = DefaultMaxGames,
-  tokens: seq[string] = @[]
+  tokens: seq[string] = @[],
+  runtimeConfig = RuntimeConfig()
 ) =
   initAppState()
   appState.tokens = tokens
@@ -2273,6 +2284,8 @@ proc runServerLoop*(
     if maxTicks > 0 and runTicks >= maxTicks:
       inc gamesFinished
       if maxGames > 0 and gamesFinished >= maxGames:
+        runtimeConfig.writeResults("{}\n")
+        runtimeConfig.writeReplay("{\"format\":\"jumper-replay-v1\"}\n")
         quit(0)
       sim = initSimServer(seed + gamesFinished)
       runTicks = 0
@@ -2281,18 +2294,6 @@ proc runServerLoop*(
           resetConnectedPlayers()
 
     runFrameLimiter(lastTick)
-
-proc readConfigString(node: JsonNode, name: string, value: var string) =
-  ## Reads one optional string config field.
-  if not node.hasKey(name):
-    return
-  let item = node[name]
-  if item.kind != JString:
-    raise newException(
-      ValueError,
-      "Config field " & name & " must be a string."
-    )
-  value = item.getStr()
 
 proc readConfigInt(node: JsonNode, name: string, value: var int) =
   ## Reads one optional integer config field.
@@ -2329,11 +2330,13 @@ proc update(config: var RunConfig, jsonText: string) =
   ## Updates the run config from a JSON object.
   if jsonText.len == 0:
     return
-  let node = parseJson(jsonText)
+  var node: JsonNode
+  try:
+    node = fromJson(jsonText)
+  except jsony.JsonError as e:
+    raise newException(ValueError, "Could not parse config JSON: " & e.msg)
   if node.kind != JObject:
     raise newException(ValueError, "Config must be a JSON object.")
-  node.readConfigString("address", config.address)
-  node.readConfigInt("port", config.port)
   node.readConfigInt("seed", config.seed)
   node.readConfigInt("maxTicks", config.maxTicks)
   node.readConfigInt("max-ticks", config.maxTicks)
@@ -2342,47 +2345,23 @@ proc update(config: var RunConfig, jsonText: string) =
   node.readConfigStrings("tokens", config.tokens)
 
 when isMainModule:
+  let runtimeConfig = readRuntimeConfig(DefaultHost, DefaultPort)
   var
     config = RunConfig(
-      address: cogameHost(DefaultHost),
-      port: cogamePort(DefaultPort),
+      address: runtimeConfig.host,
+      port: runtimeConfig.port,
       seed: DefaultSeed,
       maxTicks: DefaultMaxTicks,
       maxGames: DefaultMaxGames,
       tokens: @[]
     )
-    configJson = ""
-    configPath = pathFromCogameEnv(CogameConfigUriEnv)
-    positional = 0
-  for kind, key, val in getopt():
-    case kind
-    of cmdArgument:
-      if positional == 0:
-        config.address = key
-      elif positional == 1:
-        config.port = parseInt(key)
-      inc positional
-    of cmdLongOption:
-      case key
-      of "address": config.address = val
-      of "port": config.port = parseInt(val)
-      of "seed": config.seed = parseInt(val)
-      of "maxTicks", "max-ticks": config.maxTicks = parseInt(val)
-      of "maxGames", "max-games": config.maxGames = parseInt(val)
-      of "token": config.tokens.add(val)
-      of "config": configJson = val
-      of "config-file": configPath = val
-      else: discard
-    else: discard
-  if configPath.len > 0:
-    config.update(readFile(configPath))
-  if configJson.len > 0:
-    config.update(configJson)
+  config.update(runtimeConfig.config)
   runServerLoop(
     config.address,
     config.port,
     seed = config.seed,
     maxTicks = config.maxTicks,
     maxGames = config.maxGames,
-    tokens = config.tokens
+    tokens = config.tokens,
+    runtimeConfig = runtimeConfig
   )
