@@ -2009,23 +2009,28 @@ proc isPlayerStaticRoute(route: string): bool =
   else:
     false
 
+proc clientStaticBody(route: string): string =
+  ## Returns the embedded BitWorld client body for one route.
+  case clientRoute(route, GlobalClientRoute)
+  of PlayerClientRoute, GlobalClientRoute, AdminClientRoute,
+      RewardClientRoute:
+    EmbeddedGlobalClientHtml
+  of SnappyClientRoute:
+    EmbeddedSnappyClientJs
+  else:
+    ""
+
 proc serveClientFile(request: Request, route: string): bool =
   ## Serves one sprite player client static file.
   if request.httpMethod != "GET":
     return false
-  let filePath = clientStaticPath(route, GlobalClientRoute)
-  if filePath.len == 0:
+  let body = clientStaticBody(route)
+  if body.len == 0:
     return false
   var headers: HttpHeaders
   headers["Content-Type"] = clientStaticContentType(route, GlobalClientRoute)
   headers["Cache-Control"] = "no-cache"
-  if not fileExists(filePath):
-    request.respond(404, headers, "Missing static client: " & route)
-    return true
-  try:
-    request.respond(200, headers, readFile(filePath))
-  except IOError as e:
-    request.respond(500, headers, "Could not read static client: " & e.msg)
+  request.respond(200, headers, body)
   true
 
 proc servePlayerStatic(request: Request): bool =
