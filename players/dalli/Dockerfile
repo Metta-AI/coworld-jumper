@@ -52,4 +52,4 @@ RUN apt-get update && \
 
 COPY --from=build /bin/dalli /bin/dalli
 
-CMD ["/bin/dalli", "--address:host.docker.internal", "--port:8080"]
+CMD ["/bin/dalli"]

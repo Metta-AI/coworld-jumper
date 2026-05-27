@@ -6,6 +6,8 @@ import
 const
   DefaultAddress = "localhost"
   DefaultPort = 8080
+  EngineUrlEnv = "COGAMES_ENGINE_WS_URL"
+  LegacyEngineUrlEnv = "COWORLD_PLAYER_WS_URL"
   MaxDrainMessages = 64
   ReconnectDelayMs = 250
   WorldTileSize = 32
@@ -133,6 +135,12 @@ proc queryEscape(value: string): string =
       result.add(Hex[(byte shr 4) and 0x0f])
       result.add(Hex[byte and 0x0f])
 
+proc engineUrlFromEnv(): string =
+  ## Returns the runner-provided player websocket URL.
+  result = getEnv(EngineUrlEnv)
+  if result.len == 0:
+    result = getEnv(LegacyEngineUrlEnv)
+
 proc appendQueryParam(
   url: var string,
   first: var bool,
@@ -177,10 +185,13 @@ proc spriteTextPacket(text: string): string =
 proc playerUrl(
   address: string,
   port: int,
+  url: string,
   name, token: string,
   slot: int
 ): string =
   ## Builds the Jumper player websocket URL.
+  if url.len > 0:
+    return url.addQuery(name, token, slot)
   if address.startsWith("ws://") or address.startsWith("wss://"):
     return address.addQuery(name, token, slot)
   let host =
@@ -827,11 +838,12 @@ proc decideMask(bot: var Bot): uint8 =
 proc runBot(
   address: string,
   port: int,
+  url: string,
   name, token: string,
   slot, maxSteps: int
 ) =
   ## Connects Dalli to the Jumper player websocket.
-  let endpoint = playerUrl(address, port, name, token, slot)
+  let endpoint = playerUrl(address, port, url, name, token, slot)
   while true:
     try:
       var bot = initBot(name)
@@ -862,9 +874,10 @@ proc runBot(
 
 when isMainModule:
   var
-    address = getEnv("COGAMES_ENGINE_WS_URL")
+    address = DefaultAddress
     port = DefaultPort
-    name = if address.len > 0: "" else: "dalli"
+    url = engineUrlFromEnv()
+    name = if url.len > 0: "" else: "dalli"
     token = ""
     slot = -1
     maxSteps = 0
@@ -872,8 +885,10 @@ when isMainModule:
     case kind
     of cmdLongOption:
       case key
-      of "address", "url", "player-url", "socket":
+      of "address":
         address = val
+      of "url", "player-url", "socket":
+        url = val
       of "port":
         port = parseInt(val)
       of "name":
@@ -894,4 +909,4 @@ when isMainModule:
       discard
     of cmdEnd:
       discard
-  runBot(address, port, name, token, slot, maxSteps)
+  runBot(address, port, url, name, token, slot, maxSteps)
