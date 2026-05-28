@@ -813,16 +813,20 @@ proc runBot(
   port: int,
   url: string,
   name, token: string,
-  slot, maxSteps: int
+  slot,
+  maxSteps: int,
+  exitOnDisconnect: bool
 ) =
   ## Connects Dalli to the Jumper player websocket.
   let endpoint = playerUrl(address, port, url, name, token, slot)
+  var connected = false
   while true:
     try:
       var bot = initBot(name)
       echo bot.name, " connecting to ", endpoint.redactedUrl()
       flushFile(stdout)
       let ws = newWebSocket(endpoint)
+      connected = true
       echo bot.name, " connected"
       flushFile(stdout)
       var lastMask = 0xff'u8
@@ -841,8 +845,15 @@ proc runBot(
           ws.close()
           return
     except CatchableError as e:
-      echo name, " reconnecting: ", e.msg
-      flushFile(stdout)
+      if connected:
+        echo name, " disconnected: ", e.msg
+        flushFile(stdout)
+        if exitOnDisconnect:
+          return
+        connected = false
+      else:
+        echo name, " reconnecting: ", e.msg
+        flushFile(stdout)
       sleep(ReconnectDelayMs)
 
 when isMainModule:
@@ -882,4 +893,14 @@ when isMainModule:
       discard
     of cmdEnd:
       discard
-  runBot(address, port, url, name, token, slot, maxSteps)
+  let exitOnDisconnect = url.len > 0
+  runBot(
+    address,
+    port,
+    url,
+    name,
+    token,
+    slot,
+    maxSteps,
+    exitOnDisconnect
+  )
