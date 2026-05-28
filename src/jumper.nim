@@ -195,11 +195,8 @@ type
 proc dataDir(): string =
   getCurrentDir() / "data"
 
-proc repoDir(): string =
-  getCurrentDir() / ".."
-
 proc clientDataDir(): string =
-  repoDir() / "client" / "data"
+  clientDir() / "data"
 
 proc sheetPath(): string =
   dataDir() / "spritesheet.aseprite"
@@ -2001,53 +1998,11 @@ proc serveHealthz(request: Request): bool =
   request.respondPlain(200, "healthy")
   true
 
-proc isPlayerStaticRoute(route: string): bool =
-  ## Returns true for sprite client static routes Jumper serves.
-  case route
-  of PlayerClientRoute, PlayerClientHtmlRoute,
-      GlobalClientRoute, GlobalClientHtmlRoute,
-      AdminClientRoute, AdminClientHtmlRoute,
-      CoworldReplayClientRoute,
-      SnappyClientRoute, SnappyClientPath:
-    true
-  else:
-    false
-
 proc isGlobalSocketPath(path: string): bool =
   ## Returns true for global viewer websocket endpoints.
   path == GlobalWebSocketPath or
     path == AdminWebSocketPath or
     path == ReplayWebSocketPath
-
-proc clientStaticBody(route: string): string =
-  ## Returns the embedded BitWorld client body for one route.
-  case clientRoute(route, GlobalClientRoute)
-  of PlayerClientRoute, GlobalClientRoute, AdminClientRoute,
-      RewardClientRoute:
-    EmbeddedGlobalClientHtml
-  of SnappyClientRoute:
-    EmbeddedSnappyClientJs
-  else:
-    ""
-
-proc serveClientFile(request: Request, route: string): bool =
-  ## Serves one sprite player client static file.
-  if request.httpMethod != "GET":
-    return false
-  let body = clientStaticBody(route)
-  if body.len == 0:
-    return false
-  var headers: HttpHeaders
-  headers["Content-Type"] = clientStaticContentType(route, GlobalClientRoute)
-  headers["Cache-Control"] = "no-cache"
-  request.respond(200, headers, body)
-  true
-
-proc servePlayerStatic(request: Request): bool =
-  ## Serves the shared sprite client for player-only Jumper routes.
-  if not request.path.isPlayerStaticRoute():
-    return false
-  request.serveClientFile(request.path)
 
 proc playerSlot(request: Request): int =
   ## Returns the requested zero-based slot or -1 for automatic assignment.
@@ -2084,10 +2039,10 @@ proc httpHandler(request: Request) =
     discard
   elif request.path == WebSocketPath and request.httpMethod == "GET" and
       not request.isWebSocketUpgrade():
-    discard request.serveClientFile(GlobalClientRoute)
+    discard request.serveClientFile(GlobalClientRoute, GlobalClientRoute)
   elif request.path.isGlobalSocketPath() and
       request.httpMethod == "GET" and not request.isWebSocketUpgrade():
-    discard request.serveClientFile(GlobalClientRoute)
+    discard request.serveClientFile(GlobalClientRoute, GlobalClientRoute)
   elif request.path == WebSocketPath and request.httpMethod == "GET" and
       request.isWebSocketUpgrade():
     let
@@ -2115,7 +2070,7 @@ proc httpHandler(request: Request) =
     {.gcsafe.}:
       withLock appState.lock:
         appState.globalViewers[websocket] = PlayerViewerState()
-  elif request.servePlayerStatic():
+  elif request.serveClientRoute(GlobalClientRoute):
     discard
   else:
     request.respondPlain(200, "Jumper sprite protocol server")
