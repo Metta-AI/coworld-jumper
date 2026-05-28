@@ -25,7 +25,7 @@ https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-ARM64; \
 
 ENV PATH="/root/.nimby/nim/bin:$PATH"
 
-WORKDIR /workspace/cogame-jumper
+WORKDIR /workspace/coworld-jumper
 COPY nimby.lock .
 RUN nimby --global sync nimby.lock
 
@@ -34,7 +34,7 @@ ARG NimFlags="-d:release -d:useMalloc --opt:speed --stackTrace:on"
 RUN nim c \
   $NimFlags \
   --path:src \
-  --nimcache:/tmp/cogame-nimcache \
+  --nimcache:/tmp/coworld-nimcache \
   --out:/bin/jumper \
   src/jumper.nim
 
@@ -45,7 +45,7 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends ca-certificates curl && \
   rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace/cogame-jumper
+WORKDIR /workspace/coworld-jumper
 COPY --from=build /bin/jumper /bin/jumper
 COPY data ./data
 COPY coworld_manifest.json .
