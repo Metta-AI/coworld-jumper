@@ -524,19 +524,6 @@ proc holeAhead(bot: Bot, player: PlayerSight): bool =
       if gapPixels >= HoleMinPixels:
         return true
 
-proc holeBehind(bot: Bot, player: PlayerSight): bool =
-  ## Returns true when a sustained gap is visible behind Dalli.
-  let footY = player.worldY + PlayerBoxHeight + 2
-  var gapPixels = 0
-  for dx in countup(PlayerBoxWidth + 6, HoleLookAheadPixels, 8):
-    let x = player.worldX + PlayerBoxWidth - dx
-    if bot.groundNear(x, footY, GroundDropPixels):
-      gapPixels = 0
-    else:
-      gapPixels += 8
-      if gapPixels >= HoleMinPixels:
-        return true
-
 proc scanObstacleColumn(bot: Bot, x, footY: int): ObstacleScan =
   ## Measures one solid column in front of Dalli from feet upward.
   let
@@ -736,15 +723,6 @@ proc seekFlagMask(
       obstacle
     )
   bot.resetBigJump()
-  if result == ButtonLeft and bot.holeBehind(own):
-    return bot.applyForwardJumping(
-      ButtonRight,
-      grounded,
-      hole,
-      canJumpObstacle,
-      stuckJump,
-      obstacle
-    )
   if result == 0 and flag.centerY < own.centerY - PlayerBoxHeight div 2:
     result = result or bot.jumpButton(grounded)
 
@@ -781,18 +759,16 @@ proc decideMask(bot: var Bot): uint8 =
     bot.queueChat(PanicChats)
 
   if flag.found:
-    let flagDirection = moveToward(flag.centerX, own.centerX)
-    if flagDirection != ButtonRight:
-      bot.intent = "flag"
-      return bot.seekFlagMask(
-        own,
-        flag,
-        grounded,
-        hole,
-        canJumpObstacle,
-        stuckJump,
-        obstacle
-      )
+    bot.intent = "flag"
+    return bot.seekFlagMask(
+      own,
+      flag,
+      grounded,
+      hole,
+      canJumpObstacle,
+      stuckJump,
+      obstacle
+    )
 
   if needsHelp and not helper.found:
     bot.intent = "waiting"
