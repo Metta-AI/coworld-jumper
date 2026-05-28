@@ -101,6 +101,9 @@ const
   ScorePanelNameGapX = 2
   ScorePanelMaxScoreChars = 16
   ChatLifetimeTicks = 5 * 24
+  ScorePanelSelectedR = 255'u8
+  ScorePanelSelectedG = 226'u8
+  ScorePanelSelectedB = 92'u8
 
 type
   HsvColor = object
@@ -165,7 +168,12 @@ type
 
   PlayerViewerState = object
     initialized: bool
+    selectedPlayerIndex: int
+    mouseX, mouseY, mouseLayer: int
+    mouseDown, clickPending: bool
+    povInitialized: bool
     spriteCache: seq[SpriteCacheEntry]
+    povSpriteCache: seq[SpriteCacheEntry]
 
   WebSocketAppState = object
     lock: Lock
@@ -1047,10 +1055,21 @@ proc scorePanelChipSprite(color: uint8): RgbaSprite =
 
 proc scorePanelNameSprite(
   sim: SimServer,
-  player: ScorePanelPlayer
+  player: ScorePanelPlayer,
+  selected: bool
 ): RgbaSprite =
   ## Builds one score panel player name sprite.
-  sim.tiny5Sprite(player.name, rgbaColor(player.color))
+  let color =
+    if selected:
+      rgba(
+        ScorePanelSelectedR,
+        ScorePanelSelectedG,
+        ScorePanelSelectedB,
+        255
+      )
+    else:
+      rgbaColor(player.color)
+  sim.tiny5Sprite(player.name, color)
 
 proc addScorePanelDigitSprites(
   packet: var seq[uint8],
@@ -1070,12 +1089,14 @@ proc addScorePanelPlayerSprites(
   packet: var seq[uint8],
   sim: SimServer,
   cache: var seq[SpriteCacheEntry],
-  player: ScorePanelPlayer
+  player: ScorePanelPlayer,
+  selectedIndex: int
 ) =
   ## Adds one player's score panel sprites when pixels changed.
   let
     chip = scorePanelChipSprite(player.color)
-    name = sim.scorePanelNameSprite(player)
+    selected = player.index == selectedIndex
+    name = sim.scorePanelNameSprite(player, selected)
   packet.addRgbaSpriteCached(
     cache,
     scorePanelChipSpriteId(player.index),
@@ -1088,6 +1109,50 @@ proc addScorePanelPlayerSprites(
     name,
     "score name " & player.name
   )
+
+proc selectedGlobalPlayerIndex(state: PlayerViewerState, sim: SimServer): int =
+  ## Returns the selected global player index clamped to connected players.
+  if sim.players.len == 0:
+    return -1
+  result = state.selectedPlayerIndex
+  if result < 0 or result >= sim.players.len:
+    return -1
+
+proc toggleSelectedPlayer(state: var PlayerViewerState, playerIndex: int) =
+  ## Selects or clears the current global point-of-view player.
+  let previous = state.selectedPlayerIndex
+  if playerIndex >= 0:
+    state.selectedPlayerIndex =
+      if state.selectedPlayerIndex == playerIndex:
+        -1
+      else:
+        playerIndex
+  if state.selectedPlayerIndex != previous:
+    state.povInitialized = false
+    state.povSpriteCache.setLen(0)
+
+proc scorePanelPlayerAt(
+  sim: SimServer,
+  layer,
+  mouseX,
+  mouseY: int
+): int =
+  ## Returns the score-panel player index at one mouse point.
+  if layer != TopLeftLayerId or sim.players.len == 0:
+    return -1
+  var players = sim.scorePanelPlayers()
+  players.sort(compareScorePanelPlayers)
+  let
+    rowHeight = max(sim.textFont.lineHeight(), ScorePanelChipSize)
+    scoreColumnWidth = sim.scorePanelScoreWidth(players)
+    scoreXBase = ScorePanelChipSize + ScorePanelChipGapX
+    nameX = scoreXBase + scoreColumnWidth + ScorePanelNameGapX
+    row = mouseY div rowHeight
+  if mouseY < 0 or row < 0 or row >= players.len:
+    return -1
+  if mouseX < nameX or mouseX >= TopLeftViewportWidth:
+    return -1
+  players[row].index
 
 proc addTiny5Object(
   packet: var seq[uint8],
@@ -1162,7 +1227,8 @@ proc addSpeechBubble(
 proc addGlobalScorePanel(
   packet: var seq[uint8],
   sim: SimServer,
-  cache: var seq[SpriteCacheEntry]
+  cache: var seq[SpriteCacheEntry],
+  selectedIndex: int
 ) =
   ## Appends the global score panel.
   if sim.players.len == 0:
@@ -1176,7 +1242,7 @@ proc addGlobalScorePanel(
     scoreXBase = ScorePanelChipSize + ScorePanelChipGapX
     nameX = scoreXBase + scoreColumnWidth + ScorePanelNameGapX
   for i, player in players:
-    packet.addScorePanelPlayerSprites(sim, cache, player)
+    packet.addScorePanelPlayerSprites(sim, cache, player, selectedIndex)
     let
       rowY = i * rowHeight
       chipY = rowY + (rowHeight - ScorePanelChipSize) div 2
@@ -1530,6 +1596,40 @@ proc buildSpriteProtocolGlobalUpdates(
 ): seq[uint8] =
   ## Builds one sprite protocol update packet for a global viewer.
   nextState = state
+  if nextState.clickPending:
+    let playerIndex = sim.scorePanelPlayerAt(
+      nextState.mouseLayer,
+      nextState.mouseX,
+      nextState.mouseY
+    )
+    if playerIndex >= 0:
+      nextState.toggleSelectedPlayer(playerIndex)
+    nextState.clickPending = false
+
+  let selectedIndex = nextState.selectedGlobalPlayerIndex(sim)
+  nextState.selectedPlayerIndex = selectedIndex
+  if selectedIndex >= 0:
+    var
+      povState = PlayerViewerState(
+        initialized: nextState.povInitialized,
+        spriteCache: nextState.povSpriteCache
+      )
+      nextPovState: PlayerViewerState
+    result = sim.buildSpriteProtocolPlayerUpdates(
+      selectedIndex,
+      povState,
+      nextPovState
+    )
+    nextState.initialized = false
+    nextState.povInitialized = nextPovState.initialized
+    nextState.povSpriteCache = nextPovState.spriteCache
+    result.addGlobalScorePanel(
+      sim,
+      nextState.spriteCache,
+      selectedIndex
+    )
+    return
+
   if not nextState.initialized:
     result.addSpriteProtocolInit(
       sim,
@@ -1612,7 +1712,7 @@ proc buildSpriteProtocolGlobalUpdates(
       player.y + 201
     )
 
-  result.addGlobalScorePanel(sim, nextState.spriteCache)
+  result.addGlobalScorePanel(sim, nextState.spriteCache, selectedIndex)
 
 proc applyInput(sim: var SimServer, playerIndex: int, input: InputState) =
   if playerIndex < 0 or playerIndex >= sim.players.len:
@@ -1889,11 +1989,71 @@ proc initAppState() =
   appState.closedSockets = @[]
   appState.tokens = @[]
 
+proc initGlobalViewerState(): PlayerViewerState =
+  ## Returns the default state for one global viewer.
+  result.selectedPlayerIndex = -1
+  result.mouseLayer = MapLayerId
+
 proc inputStateFromMasks(currentMask, previousMask: uint8): InputState =
   result = decodeInputMask(currentMask)
   result.attack =
     (currentMask and ButtonA) != 0 and
     (previousMask and ButtonA) == 0
+
+proc readI16(blob: string, offset: int): int =
+  ## Reads one little endian signed 16 bit value from a string.
+  let value = uint16(blob[offset].uint8) or
+    (uint16(blob[offset + 1].uint8) shl 8)
+  int(cast[int16](value))
+
+proc applyGlobalViewerMessage(
+  state: var PlayerViewerState,
+  message: string
+) =
+  ## Applies one or more global viewer client messages.
+  var offset = 0
+  while offset < message.len:
+    let messageType = message[offset].uint8
+    inc offset
+    case messageType
+    of 0x81:
+      if offset + 2 > message.len:
+        return
+      let length = int(uint16(message[offset].uint8) or
+        (uint16(message[offset + 1].uint8) shl 8))
+      offset += 2
+      if offset + length > message.len:
+        return
+      offset += length
+    of 0x82:
+      if offset + 4 > message.len:
+        return
+      state.mouseX = message.readI16(offset)
+      state.mouseY = message.readI16(offset + 2)
+      offset += 4
+      if offset < message.len and message[offset].uint8 notin
+          {0x81'u8, 0x82'u8, 0x83'u8, 0x84'u8}:
+        state.mouseLayer = int(message[offset].uint8)
+        inc offset
+      else:
+        state.mouseLayer = MapLayerId
+    of 0x83:
+      if offset + 2 > message.len:
+        return
+      let
+        button = message[offset].uint8
+        down = message[offset + 1].uint8 != 0
+      offset += 2
+      if button == 1'u8:
+        state.mouseDown = down
+        if down:
+          state.clickPending = true
+    of 0x84:
+      if offset + 1 > message.len:
+        return
+      inc offset
+    else:
+      return
 
 proc readSpriteInputText(message: string): string =
   ## Reads printable text from sprite player input messages.
@@ -2069,7 +2229,7 @@ proc httpHandler(request: Request) =
     let websocket = request.upgradeToWebSocket()
     {.gcsafe.}:
       withLock appState.lock:
-        appState.globalViewers[websocket] = PlayerViewerState()
+        appState.globalViewers[websocket] = initGlobalViewerState()
   elif request.serveClientRoute(GlobalClientRoute):
     discard
   else:
@@ -2084,6 +2244,13 @@ proc websocketHandler(
   of OpenEvent:
     discard
   of MessageEvent:
+    if message.kind == BinaryMessage:
+      {.gcsafe.}:
+        withLock appState.lock:
+          if websocket in appState.globalViewers:
+            var state = appState.globalViewers[websocket]
+            state.applyGlobalViewerMessage(message.data)
+            appState.globalViewers[websocket] = state
     if message.kind == BinaryMessage and message.data.len == 2 and
         (
           message.data[0].uint8 == PacketInput or
