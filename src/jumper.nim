@@ -2300,7 +2300,7 @@ proc update(config: var RunConfig, jsonText: string) =
   node.readConfigStrings("tokens", config.tokens)
 
 when isMainModule:
-  let runtimeConfig = readRuntimeConfig(DefaultHost, DefaultPort)
+  let runtimeConfig = readRuntimeConfig()
   var
     config = RunConfig(
       address: runtimeConfig.host,
