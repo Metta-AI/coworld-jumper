@@ -2,8 +2,9 @@ import
   std/[algorithm, json, locks, monotimes, os, random, strutils,
     tables, times],
   jsony, mummy, pixie,
-  bitworld/aseprite, bitworld/client, bitworld/runtime, bitworld/tiled, bitworld/pixelfonts,
-  bitworld/spriteprotocol, bitworld/server
+  bitworld/aseprite, bitworld/client, bitworld/runtime, bitworld/tiled,
+  bitworld/pixelfonts, bitworld/spriteprotocol, bitworld/server,
+  bitworld/sprites
 
 const
   DefaultSeed = 0xB1770
@@ -108,10 +109,6 @@ const
 type
   HsvColor = object
     h, s, v: float
-
-  RgbaSprite = object
-    width, height: int
-    pixels: seq[uint8]
 
   Rect = object
     x, y, w, h: int
@@ -225,65 +222,15 @@ proc loadTiny5Font(): PixelFont =
   ## Loads the shared Tiny5 variable-width pixel font.
   readTiny5Font()
 
-proc newRgbaSprite(width, height: int): RgbaSprite =
-  ## Allocates a transparent RGBA sprite.
-  result.width = width
-  result.height = height
-  result.pixels = newSeq[uint8](width * height * 4)
-
 proc rgbaColor(color: uint8): ColorRGBA =
   ## Converts one palette index to an RGBA color.
   if color == TransparentColorIndex:
     return ColorRGBA(r: 0, g: 0, b: 0, a: 0)
   Palette[int(color)]
 
-proc putRgbaPixel(sprite: var RgbaSprite, x, y: int, color: ColorRGBA) =
-  ## Writes one pixel into an RGBA sprite.
-  if x < 0 or y < 0 or x >= sprite.width or y >= sprite.height:
-    return
-  let offset = (y * sprite.width + x) * 4
-  sprite.pixels[offset] = color.r
-  sprite.pixels[offset + 1] = color.g
-  sprite.pixels[offset + 2] = color.b
-  sprite.pixels[offset + 3] = color.a
-
-proc fillRgbaRect(
-  sprite: var RgbaSprite,
-  x,
-  y,
-  width,
-  height: int,
-  color: ColorRGBA
-) =
-  ## Fills one clipped RGBA rectangle.
-  for py in y ..< y + height:
-    for px in x ..< x + width:
-      sprite.putRgbaPixel(px, py, color)
-
-proc rgbaPixel(sprite: RgbaSprite, x, y: int): ColorRGBA =
-  ## Reads one pixel from an RGBA sprite.
-  if x < 0 or y < 0 or x >= sprite.width or y >= sprite.height:
-    return rgba(0, 0, 0, 0)
-  let offset = (y * sprite.width + x) * 4
-  rgba(
-    sprite.pixels[offset],
-    sprite.pixels[offset + 1],
-    sprite.pixels[offset + 2],
-    sprite.pixels[offset + 3]
-  )
-
 proc sheetRgbaSprite(sheet: Image, cellX, cellY: int): RgbaSprite =
   ## Slices one 32 pixel cell from the sprite sheet as RGBA.
-  result = newRgbaSprite(SheetTileSize, SheetTileSize)
-  let image = sheet.subImage(
-    cellX * SheetTileSize,
-    cellY * SheetTileSize,
-    SheetTileSize,
-    SheetTileSize
-  )
-  for y in 0 ..< image.height:
-    for x in 0 ..< image.width:
-      result.putRgbaPixel(x, y, image[x, y])
+  sheet.cellRgbaSprite(cellX, cellY, SheetTileSize)
 
 proc sheetGidSprite(sheet: Image, gid: int): RgbaSprite =
   ## Slices one Tiled gid cell from the sprite sheet as RGBA.
@@ -409,23 +356,7 @@ proc tintPlayerSprite(
 
 proc solidRgbaSprite(width, height: int, color: uint8): RgbaSprite =
   ## Builds one solid RGBA sprite from a palette index.
-  result = newRgbaSprite(width, height)
-  let rgba = rgbaColor(color)
-  for y in 0 ..< height:
-    for x in 0 ..< width:
-      result.putRgbaPixel(x, y, rgba)
-
-proc outlineRgbaSprite(width, height: int, color: ColorRGBA): RgbaSprite =
-  ## Builds a transparent outline sprite.
-  result = newRgbaSprite(width, height)
-  if width <= 0 or height <= 0:
-    return
-  for x in 0 ..< width:
-    result.putRgbaPixel(x, 0, color)
-    result.putRgbaPixel(x, height - 1, color)
-  for y in 0 ..< height:
-    result.putRgbaPixel(0, y, color)
-    result.putRgbaPixel(width - 1, y, color)
+  solidRgbaSprite(width, height, rgbaColor(color))
 
 proc chatCharSupported(ch: char): bool =
   ## Returns true when Jumper can draw one chat character.
@@ -970,7 +901,7 @@ proc scorePanelDigitSprite(sim: SimServer, ch: char): RgbaSprite =
 proc scorePanelChipSprite(color: uint8): RgbaSprite =
   ## Builds one solid score panel color chip.
   result = newRgbaSprite(ScorePanelChipSize, ScorePanelChipSize)
-  result.fillRgbaRect(
+  result.fillRect(
     0,
     0,
     ScorePanelChipSize,
