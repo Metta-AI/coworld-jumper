@@ -1,7 +1,7 @@
 import
   std/[monotimes, options, os, parseopt, random, strutils, tables, times],
   supersnappy, whisky,
-  bitworld/protocol
+  bitworld/spriteprotocol
 
 const
   DefaultAddress = "localhost"
