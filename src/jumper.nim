@@ -2252,6 +2252,22 @@ proc update(config: var RunConfig, jsonText: string) =
   node.readConfigInt("max-games", config.maxGames)
   node.readConfigStrings("tokens", config.tokens)
 
+proc limitText(value: int): string =
+  ## Returns a readable text value for a numeric limit.
+  if value > 0:
+    $value
+  else:
+    "infinite"
+
+proc echoStartupConfig(config: RunConfig) =
+  ## Prints the effective startup config without token secrets.
+  echo "Jumper config: host=", config.address,
+    " port=", config.port,
+    " seed=", config.seed,
+    " tokens=", config.tokens.len,
+    " maxTicks=", config.maxTicks.limitText(),
+    " maxGames=", config.maxGames.limitText()
+
 when isMainModule:
   let runtimeConfig = readRuntimeConfig()
   var
@@ -2264,6 +2280,7 @@ when isMainModule:
       tokens: @[]
     )
   config.update(runtimeConfig.config)
+  config.echoStartupConfig()
   runServerLoop(
     config.address,
     config.port,
