@@ -1,22 +1,24 @@
 # Jumper
 
 <!-- COWORLD-VERIFY-BADGE:START -->
-![Coworld verify: failed](https://img.shields.io/badge/coworld%20verify-failed-red)
+![Coworld verify: passing](https://img.shields.io/badge/coworld%20verify-passing-brightgreen)
 <!-- COWORLD-VERIFY-BADGE:END -->
 
 
 <!-- COWORLD-REPO-STATUS:START -->
 > [!NOTE]
-> Coworld repo status: **incomplete** (`coworld-incomplete`).
+> Coworld repo status: **complete** (`coworld-complete`).
 > Canonical repository: `Metta-AI/coworld-jumper`.
-> Manifest path: `coworld_manifest.json`.
+> Manifest path: `coworld_manifest.json` (template; hydrated and certified by
+> `metta/worlds/upload.sh jumper`).
 > Build path: `Dockerfile`
-> Certification: blocked until `uv run coworld certify coworld_manifest.json` passes and the result is recorded.
+> Certification: passing — `jumper:0.1.2` is the canonical hosted Coworld, with an
+> [hourly league](https://softmax.com/observatory/v2?tab=leagues&detail=league:league_f140dae4-e5fd-4d22-b8eb-67bc99e880ba)
+> running eight-player rounds with watchable replays.
 >
-> Missing pieces:
-> - [ ] Validate the root concrete manifest against the current Coworld schema.
-> - [ ] Run `uv run coworld certify coworld_manifest.json` with the bundled players.
-> - [ ] Switch the repo topic to `coworld-complete` after certification passes.
+> - [x] Validate the manifest against the current Coworld schema.
+> - [x] Run certification with the bundled players (local + hosted smoke).
+> - [x] Switch the repo topic to `coworld-complete`.
 <!-- COWORLD-REPO-STATUS:END -->
 
 
