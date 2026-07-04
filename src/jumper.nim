@@ -45,7 +45,7 @@ const
   AdminWebSocketPath = "/admin"
   ReplayWebSocketPath = "/replay"
   SkyColor = 14'u8
-  PlayerColors = [3'u8, 7, 8, 14, 4, 11]
+  PlayerColors = [3'u8, 7, 8, 14, 4, 11, 13, 15]
   DeathY = LevelHeightPixels + WorldTileSize * 2
   SpawnWidthTiles = 9
   SpawnAirTiles = 4

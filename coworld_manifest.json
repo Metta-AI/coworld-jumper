@@ -8,7 +8,9 @@
     "runnable": {
       "type": "game",
       "image": "{{GAME_IMAGE}}",
-      "run": ["/bin/jumper"]
+      "run": [
+        "/bin/jumper"
+      ]
     },
     "config_schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -21,13 +23,22 @@
         "tokens": {
           "description": "One connection token per player slot, indexed by slot.",
           "type": "array",
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 8,
+          "maxItems": 8,
           "items": {
             "type": "string",
             "minLength": 0
           },
-          "default": ["", "", "", ""]
+          "default": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
         },
         "seed": {
           "description": "Random seed.",
@@ -51,8 +62,8 @@
           "description": "Player seat count used by hosted league seating.",
           "type": "integer",
           "minimum": 1,
-          "maximum": 4,
-          "default": 4
+          "maximum": 8,
+          "default": 8
         }
       }
     },
@@ -68,8 +79,8 @@
         "names": {
           "description": "Player display names in seat slot order.",
           "type": "array",
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 8,
+          "maxItems": 8,
           "items": {
             "type": "string"
           }
@@ -77,8 +88,8 @@
         "scores": {
           "description": "Flag captures per seat slot at the end of the game.",
           "type": "array",
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 8,
+          "maxItems": 8,
           "items": {
             "type": "integer",
             "minimum": 0
@@ -128,7 +139,9 @@
       "type": "player",
       "description": "Deterministic flag-seeking baseline Jumper bot.",
       "image": "{{DALLI_IMAGE}}",
-      "run": ["/bin/dalli"]
+      "run": [
+        "/bin/dalli"
+      ]
     }
   ],
   "commissioner": [
@@ -168,7 +181,7 @@
         "seed": 727920,
         "maxTicks": 4320,
         "maxGames": 1,
-        "num_agents": 4
+        "num_agents": 8
       },
       "description": "One bounded three-minute Jumper game used for hosted league rounds."
     },
@@ -211,8 +224,20 @@
       },
       {
         "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
       }
     ]
   },
-  "players_per_user": 4
+  "players_per_user": 8
 }
