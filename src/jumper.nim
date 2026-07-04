@@ -119,6 +119,7 @@ type
     carryX, carryY: int
     onGround: bool
     score: int
+    slot: int
     dead: bool
     respawnTimer: int
     facingRight: bool
@@ -180,6 +181,7 @@ type
     playerViewers: Table[WebSocket, PlayerViewerState]
     globalViewers: Table[WebSocket, PlayerViewerState]
     playerNames: Table[WebSocket, string]
+    playerSlots: Table[WebSocket, int]
     chatMessages: Table[WebSocket, string]
     closedSockets: seq[WebSocket]
     tokens: seq[string]
@@ -701,7 +703,18 @@ proc resolveOverlaps(sim: var SimServer) =
     if not moved:
       break
 
-proc addPlayer(sim: var SimServer, name: string): int =
+proc freeSlot(sim: SimServer, requestedSlot: int): int =
+  ## Returns the requested seat slot or the first unoccupied one.
+  var used: seq[int] = @[]
+  for player in sim.players:
+    used.add(player.slot)
+  if requestedSlot >= 0 and requestedSlot notin used:
+    return requestedSlot
+  result = 0
+  while result in used:
+    inc result
+
+proc addPlayer(sim: var SimServer, name: string, requestedSlot = -1): int =
   ## Adds one player at a random spawn point.
   let
     spawn = sim.randomSpawn()
@@ -719,9 +732,34 @@ proc addPlayer(sim: var SimServer, name: string): int =
     facingRight: true,
     color: color,
     name: cleanName,
+    slot: sim.freeSlot(requestedSlot),
   )
   result = sim.players.high
   sim.resolveOverlaps()
+
+proc resultsJson(sim: SimServer, seatCount: int): string =
+  ## Returns end-of-game per-seat player results as JSON.
+  var seats = seatCount
+  for player in sim.players:
+    seats = max(seats, player.slot + 1)
+  var
+    names = newJArray()
+    scores = newJArray()
+  for slot in 0 ..< seats:
+    var seated = false
+    for player in sim.players:
+      if player.slot == slot:
+        names.add(%player.name)
+        scores.add(%player.score)
+        seated = true
+        break
+    if not seated:
+      names.add(%"")
+      scores.add(%0)
+  var results = newJObject()
+  results["names"] = names
+  results["scores"] = scores
+  $results
 
 proc respawnPlayer(sim: var SimServer, i: int) =
   let spawn = sim.randomSpawn()
@@ -1898,6 +1936,8 @@ proc removePlayer(sim: var SimServer, websocket: WebSocket) =
     appState.playerViewers.del(websocket)
   if websocket in appState.playerNames:
     appState.playerNames.del(websocket)
+  if websocket in appState.playerSlots:
+    appState.playerSlots.del(websocket)
   if websocket in appState.chatMessages:
     appState.chatMessages.del(websocket)
   if websocket notin appState.playerIndices:
@@ -1980,6 +2020,23 @@ proc playerJoinAllowed(slot: int, token: string): bool =
     return token in appState.tokens
   false
 
+proc resolveJoinSlot(slot: int, token: string): int =
+  ## Returns the seat slot for one accepted join request.
+  if slot >= 0:
+    return slot
+  if appState.tokens.len == 0:
+    return -1
+  var claimed: seq[int] = @[]
+  for _, claimedSlot in appState.playerSlots.pairs:
+    claimed.add(claimedSlot)
+  result = -1
+  for i in 0 ..< appState.tokens.len:
+    if appState.tokens[i] == token:
+      if i notin claimed:
+        return i
+      if result == -1:
+        result = i
+
 proc httpHandler(request: Request) =
   if request.serveHealthz():
     discard
@@ -2008,6 +2065,7 @@ proc httpHandler(request: Request) =
         appState.playerViewers[websocket] = PlayerViewerState()
         appState.playerIndices[websocket] = UnassignedPlayerIndex
         appState.playerNames[websocket] = name
+        appState.playerSlots[websocket] = resolveJoinSlot(slot, token)
         appState.inputMasks[websocket] = 0
         appState.lastAppliedMasks[websocket] = 0
   elif request.path.isGlobalSocketPath() and
@@ -2119,7 +2177,8 @@ proc runServerLoop*(
         for websocket in appState.playerIndices.keys:
           if appState.playerIndices[websocket] == UnassignedPlayerIndex:
             appState.playerIndices[websocket] = sim.addPlayer(
-              appState.playerNames.getOrDefault(websocket, "")
+              appState.playerNames.getOrDefault(websocket, ""),
+              appState.playerSlots.getOrDefault(websocket, -1)
             )
 
         inputs = newSeq[InputState](sim.players.len)
@@ -2192,7 +2251,7 @@ proc runServerLoop*(
     if maxTicks > 0 and runTicks >= maxTicks:
       inc gamesFinished
       if maxGames > 0 and gamesFinished >= maxGames:
-        runtimeConfig.writeResults("{}\n")
+        runtimeConfig.writeResults(sim.resultsJson(tokens.len) & "\n")
         runtimeConfig.writeReplay("{\"format\":\"jumper-replay-v1\"}\n")
         quit(0)
       sim = initSimServer(seed + gamesFinished)
