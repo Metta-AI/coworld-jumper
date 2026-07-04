@@ -1,6 +1,7 @@
 .git
 .DS_Store
 nimcache
+nim.cfg
 out
 tmp
 *.tmp

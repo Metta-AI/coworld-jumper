@@ -27,7 +27,7 @@ other, and reach the flag.
 
 ```bash
 nimble build
-./jumper --address:0.0.0.0 --port:8080
+./jumper --host:0.0.0.0 --port:8080
 ```
 
 Open `http://localhost:8080/client/global` to spectate.

@@ -7,7 +7,7 @@
     "owner": "treeform@softmax.com",
     "runnable": {
       "type": "game",
-      "image": "public.ecr.aws/s3j4p9s7/treeform/games/jumper:latest",
+      "image": "{{GAME_IMAGE}}",
       "run": ["/bin/jumper"]
     },
     "config_schema": {
@@ -21,13 +21,13 @@
         "tokens": {
           "description": "One connection token per player slot, indexed by slot.",
           "type": "array",
-          "minItems": 0,
-          "maxItems": 16,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "string",
             "minLength": 0
           },
-          "default": []
+          "default": ["", "", "", ""]
         },
         "seed": {
           "description": "Random seed.",
@@ -46,6 +46,13 @@
           "type": "integer",
           "minimum": 0,
           "default": 0
+        },
+        "num_agents": {
+          "description": "Player seat count used by hosted league seating.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 4
         }
       }
     },
@@ -53,7 +60,31 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "additionalProperties": false,
-      "properties": {}
+      "required": [
+        "names",
+        "scores"
+      ],
+      "properties": {
+        "names": {
+          "description": "Player display names in seat slot order.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string"
+          }
+        },
+        "scores": {
+          "description": "Flag captures per seat slot at the end of the game.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
     },
     "protocols": {
       "global": {
@@ -76,7 +107,7 @@
           "title": "rules.md",
           "content": {
             "type": "text",
-            "value": "# Jumper Rules\n\nPlayers move through a side-scrolling platform level, cross pits, stack on each other when needed, and try to reach the flag. Falling below the level respawns the player. The smoke certification runs a short deterministic two-player episode."
+            "value": "# Jumper Rules\n\nPlayers move through a side-scrolling platform level, cross pits, stack on each other when needed, and try to reach the flag. Reaching the flag scores one point and respawns the player at the start. Falling below the level respawns the player. The player with the most flag captures when time runs out wins."
           }
         },
         {
@@ -84,7 +115,7 @@
           "title": "play_jumper.md",
           "content": {
             "type": "text",
-            "value": "# Play Jumper\n\nConnect with the sprite protocol player websocket, move right through the level, jump over gaps and walls, and cooperate with other players to cross larger hazards. The bundled dalli player is a deterministic smoke-test bot for local certification."
+            "value": "# Play Jumper\n\nConnect with the sprite protocol player websocket, move right through the level, jump over gaps and walls, and cooperate with other players to cross larger hazards. The bundled dalli player is a deterministic flag-seeking baseline bot."
           }
         }
       ]
@@ -95,9 +126,19 @@
       "id": "dalli",
       "name": "dalli",
       "type": "player",
-      "description": "Coworld player for jumper.",
-      "image": "public.ecr.aws/s3j4p9s7/treeform/players/dalli:latest",
+      "description": "Deterministic flag-seeking baseline Jumper bot.",
+      "image": "{{DALLI_IMAGE}}",
       "run": ["/bin/dalli"]
+    }
+  ],
+  "commissioner": [
+    {
+      "id": "default-commissioner",
+      "name": "Default Commissioner",
+      "type": "commissioner",
+      "description": "Game-agnostic round-robin commissioner with mean-score rankings, configured for hourly Jumper rounds.",
+      "source_url": "https://github.com/Metta-AI/commissioners/tree/fa8ac7cb2bc6fd54c5675c7993919afabebcf4ba/commissioners/ruleset_strategy_commissioner",
+      "image": "{{COMMISSIONER_IMAGE}}"
     }
   ],
   "reporter": [
@@ -106,7 +147,7 @@
       "name": "Default Reporter",
       "type": "reporter",
       "description": "Default Coworld reporter for generic episode artifacts.",
-      "image": "public.ecr.aws/q5f4m8t9/cogames@sha256:396e56a9ba1576aecc5b9868a85fa309ea98fdbbf8d656c94ec021906197ea52"
+      "image": "{{REPORTER_IMAGE}}"
     }
   ],
   "grader": [
@@ -120,6 +161,17 @@
     }
   ],
   "variants": [
+    {
+      "id": "league",
+      "name": "League",
+      "game_config": {
+        "seed": 727920,
+        "maxTicks": 4320,
+        "maxGames": 1,
+        "num_agents": 4
+      },
+      "description": "One bounded three-minute Jumper game used for hosted league rounds."
+    },
     {
       "id": "freeplay",
       "name": "Freeplay",
@@ -136,7 +188,7 @@
       "game_config": {
         "seed": 727920,
         "maxTicks": 300,
-        "maxGames": 0
+        "maxGames": 1
       },
       "description": "Short deterministic Jumper configuration used for manifest checks."
     }
@@ -145,7 +197,7 @@
     "game_config": {
       "seed": 727920,
       "maxTicks": 300,
-      "maxGames": 0
+      "maxGames": 1
     },
     "players": [
       {
@@ -153,7 +205,14 @@
       },
       {
         "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
+      },
+      {
+        "player_id": "dalli"
       }
     ]
-  }
+  },
+  "players_per_user": 4
 }
