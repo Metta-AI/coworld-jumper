@@ -1,0 +1,27 @@
+services:
+  game:
+    image: coworld-jumper-game:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+  dalli:
+    image: coworld-jumper-dalli:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: players/dalli/Dockerfile
+      network: host
+  commissioner:
+    image: coworld-jumper-commissioner:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: commissioner/Dockerfile
+  grader:
+    image: coworld-jumper-grader:latest
+    platform: linux/amd64
+    build:
+      context: grader
+      dockerfile: graders/bitworld_score/bitworld_score_grader/Dockerfile

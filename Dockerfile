@@ -50,6 +50,5 @@ RUN apt-get update && \
 WORKDIR /workspace/coworld-jumper
 COPY --from=build /bin/jumper /bin/jumper
 COPY data ./data
-COPY coworld_manifest.json .
 
 CMD ["/bin/jumper"]
