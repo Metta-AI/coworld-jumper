@@ -1,0 +1,8 @@
+{
+  "author": "softmax@softmax.com",
+  "name": "leapfrog",
+  "image_uri": "",
+  "binary": "/bin/leapfrog",
+  "description": "Jumper bot that jumps pits and walls and breaks tall ledges with leapfrog rotation: stand as a step, then step back and retry after carrying a teammate.",
+  "games": ["jumper"]
+}

@@ -490,26 +490,6 @@ proc decideMask(bot: var Bot): uint8 =
   if bot.someoneOnTop(own):
     bot.lastCarrierTick = bot.frameTick
 
-  # Debug: report condition state once a second while near a wall.
-  if bot.frameTick mod TicksPerSecond == 0 and (blocked or ledge):
-    let stuckFor =
-      if bot.ledgeStuckSince > 0:
-        bot.frameTick - bot.ledgeStuckSince
-      else:
-        -1
-    let carrierAge =
-      if bot.lastCarrierTick > 0:
-        bot.frameTick - bot.lastCarrierTick
-      else:
-        -1
-    echo bot.name, " dbg tick=", bot.frameTick,
-      " x=", own.worldX,
-      " grounded=", isGrounded,
-      " blocked=", blocked,
-      " ledge=", ledge,
-      " stuckFor=", stuckFor,
-      " carrierAge=", carrierAge
-    flushFile(stdout)
 
   # Active retreat runs to completion before any other behavior.
   # Retreat = hop backward: while grounded, jump-and-left (mid-air movement
@@ -525,8 +505,6 @@ proc decideMask(bot: var Bot): uint8 =
       # Resume normal ledge attempts for a while: with the retreat gap and
       # possibly a teammate now at the wall, a running jump may make it.
       bot.climbUntilTick = bot.frameTick + ClimbWindowTicks
-      echo bot.name, " retreat done travelled=", travelled
-      flushFile(stdout)
     else:
       return ButtonLeft
 
@@ -540,8 +518,6 @@ proc decideMask(bot: var Bot): uint8 =
     bot.retreating = true
     bot.retreatStartX = own.worldX
     bot.retreatDeadline = bot.frameTick + RetreatMaxTicks
-    echo bot.name, " retreat start x=", own.worldX
-    flushFile(stdout)
     return ButtonLeft
   # --------------------------------------------------------------------------
 
