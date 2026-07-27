@@ -12,7 +12,8 @@
 import
   std/[options, os, parseopt, strutils, tables],
   whisky,
-  bitworld/spriteprotocol
+  bitworld/spriteprotocol,
+  ./reporter
 
 const
   DefaultAddress = "localhost"
@@ -550,10 +551,16 @@ proc decideMask(bot: var Bot): uint8 =
 
 # ---- websocket loop ---------------------------------------------------------
 
-proc acceptServerMessage(ws: WebSocket, message: Message, bot: var Bot): bool =
+proc acceptServerMessage(
+  ws: WebSocket,
+  message: Message,
+  bot: var Bot,
+  rep: var Reporter
+): bool =
   ## Handles one websocket message from the Jumper server.
   case message.kind
   of BinaryMessage:
+    rep.consume(message.data)
     result = bot.applySpritePacket(message.data)
     if result:
       inc bot.frameTick
@@ -562,27 +569,31 @@ proc acceptServerMessage(ws: WebSocket, message: Message, bot: var Bot): bool =
   of TextMessage, Pong:
     discard
 
-proc receiveUpdates(ws: WebSocket, bot: var Bot): bool =
+proc receiveUpdates(ws: WebSocket, bot: var Bot, rep: var Reporter): bool =
   ## Receives and applies queued sprite protocol updates.
   let firstMessage = ws.receiveMessage(-1)
   if firstMessage.isNone:
     return false
-  if ws.acceptServerMessage(firstMessage.get, bot):
+  if ws.acceptServerMessage(firstMessage.get, bot, rep):
     result = true
   var drained = 0
   while drained < MaxDrainMessages:
     let message = ws.receiveMessage(0)
     if message.isNone:
       break
-    if ws.acceptServerMessage(message.get, bot):
+    if ws.acceptServerMessage(message.get, bot, rep):
       result = true
     inc drained
 
 proc runBot(address: string, port: int, url, name, token: string,
-    slot, maxSteps: int, exitOnDisconnect: bool) =
+    slot, maxSteps: int, exitOnDisconnect: bool,
+    reportTarget: string, reportMode: ReportMode) =
   ## Connects the bot to the Jumper player websocket.
   let endpoint = playerUrl(address, port, url, name, token, slot)
-  var connected = false
+  var
+    connected = false
+    rep = initReporter(reportTarget, reportMode)
+  defer: rep.close()
   while true:
     try:
       var bot = Bot(
@@ -598,7 +609,7 @@ proc runBot(address: string, port: int, url, name, token: string,
       flushFile(stdout)
       var lastMask = 0xff'u8
       while true:
-        if not ws.receiveUpdates(bot):
+        if not ws.receiveUpdates(bot, rep):
           continue
         let nextMask = bot.decideMask()
         bot.lastMask = nextMask
@@ -629,6 +640,8 @@ when isMainModule:
     token = ""
     slot = -1
     maxSteps = 0
+    reportTarget = ""
+    reportMode = rmAll
   for kind, key, val in getopt():
     case kind
     of cmdLongOption:
@@ -647,8 +660,21 @@ when isMainModule:
         slot = parseInt(val)
       of "max-steps":
         maxSteps = parseInt(val)
+      of "report":
+        # File path for reporter output, or "-" for stdout.
+        reportTarget = val
+      of "report-mode":
+        # "all" reports dynamic sprites every frame, "changes" only
+        # when an object's world state changes, "events" only
+        # per-player state transitions.
+        case val
+        of "all": reportMode = rmAll
+        of "changes": reportMode = rmChanges
+        of "events": reportMode = rmEvents
+        else: quit("unknown --report-mode: " & val)
       else:
         discard
     else:
       discard
-  runBot(address, port, url, name, token, slot, maxSteps, url.len > 0)
+  runBot(address, port, url, name, token, slot, maxSteps, url.len > 0,
+    reportTarget, reportMode)
