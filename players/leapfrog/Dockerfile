@@ -38,7 +38,7 @@ RUN nim c \
   --path:src \
   --nimcache:/tmp/coworld-nimcache \
   --out:/bin/leapfrog \
-  players/leapfrog/main.nim
+  players/leapfrog/leapfrog.nim
 
 # Run Docker.
 FROM debian:bookworm-slim

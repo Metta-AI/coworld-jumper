@@ -147,9 +147,10 @@ goal; for other games — whatever the bot must reason about.
 
 ## Verification — do not skip
 
-1. **Run a real game** with the reporter on (add a `--report` passthrough
-   to the repo's `run_local.sh`) and read the whole log. Every line
-   should be true, human-readable in isolation, and non-repeating.
+1. **Run a real game** with the reporter on via `./run_local.sh
+   --report:report.log --report-mode:events` and read the whole log.
+   Every line should be true, human-readable in isolation, and
+   non-repeating.
 2. **Cross-check against ground truth.** Parse the map file / server
    config with a throwaway script and diff: are all reported walls/pits
    real, correct size, correct position? Is anything real missing that

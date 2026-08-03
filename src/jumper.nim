@@ -141,13 +141,13 @@ type
     x, y, w, h: int
 
   Actor* = object
-    x, y: int
-    velX, velY: int
+    x*, y*: int
+    velX*, velY*: int
     carryX, carryY: int
-    onGround: bool
+    onGround*: bool
     score*: int
     slot*: int
-    dead: bool
+    dead*: bool
     respawnTimer: int
     facingRight: bool
     color: uint8
@@ -2968,6 +2968,7 @@ proc runServerLoop*(
           runtimeConfig.writeReplay(readFile(saveReplayPath))
       inc gamesFinished
       if maxGames > 0 and gamesFinished >= maxGames:
+        echo "Results: ", sim.resultsJson(tokens.len)
         runtimeConfig.writeResults(sim.resultsJson(tokens.len) & "\n")
         quit(0)
       sim = initSimServer(seed + gamesFinished)
