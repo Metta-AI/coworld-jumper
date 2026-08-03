@@ -337,9 +337,12 @@ proc runnerMask(brain: var Brain, view: WorldView): uint8 =
   # so a botched ledge exit cannot drift into pit x29.
   if brain.velY > 0 and x >= 864 and x < 916 and feet > 400:
     return 0
-  # Crossing wall2 high up: kill the drift to land on the x38/x39
-  # tower top instead of sailing into pit x40-42.
-  if x >= 1204 and x < 1270 and feet < 340:
+  # Crossing wall2 high up: while FALLING, kill the drift so we land on
+  # the x38/x39 tower top instead of sailing into pit x40-42. Only
+  # while falling: the same airspace is used by the short hop from the
+  # x38 top up onto x39, and releasing right during that rise pins us
+  # on the tower forever.
+  if brain.velY > 0 and x >= 1204 and x < 1270 and feet < 340:
     return 0
   # Falling onto the x30-34 platform after the x29 pit jump: release
   # right so full-speed flight cannot overshoot into pit x35-36.
@@ -390,7 +393,8 @@ proc decide*(brain: var Brain, view: WorldView, role: Role): uint8 =
   # letting wall logic steer us backward.
   if not view.grounded and brain.apexJumpTick > 0 and
       brain.tick - brain.apexJumpTick < 45:
-    if view.ownX >= 1204 and view.ownX < 1270 and view.feet < 340:
+    if brain.velY > 0 and view.ownX >= 1204 and view.ownX < 1270 and
+        view.feet < 340:
       return 0
     return MaskRight
   case role
