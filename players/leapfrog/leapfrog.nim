@@ -4,14 +4,14 @@
 ## the brain's input mask.
 ##
 ## League integration:
-## - The seat slot is discovered by probing ?slot=N on connect; the
-##   server only accepts the slot whose token matches ours.
-## - We join as "jl<slot>" so teammates can recognize each other.
+## - We join as "jl<random>". The name must be unique across our own
+##   seats: self-identification reads our name tag back out of the
+##   sprite stream, and the league seats several copies of one policy.
 ## - Every seat runs the scoring route; see brain.nim for why no seat
 ##   is allowed to park as a dedicated ladder.
 
 import
-  std/[options, os, parseopt, strutils, tables],
+  std/[options, os, parseopt, random, strutils, tables, times],
   whisky,
   bitworld/spriteprotocol,
   ./brain,
@@ -344,32 +344,22 @@ proc receiveUpdates(ws: WebSocket, bot: var Bot, rep: var Reporter): bool =
       result = true
     inc drained
 
-proc connectWithSlot(address: string, port: int, url, token: string,
-    requestedSlot: int): tuple[ws: WebSocket, slot: int] =
-  ## Connects to the player socket. With no requested slot, probes
-  ## slots 0..7: the server accepts only the slot whose token matches,
-  ## which tells us which league seat we hold.
-  if requestedSlot >= 0:
-    let name = TeamPrefix & $requestedSlot
-    let endpoint = playerUrl(address, port, url, name, token, requestedSlot)
-    echo name, " connecting to ", endpoint.redactedUrl()
-    flushFile(stdout)
-    return (newWebSocket(endpoint), requestedSlot)
-  for slot in 0 .. 7:
-    let name = TeamPrefix & $slot
-    let endpoint = playerUrl(address, port, url, name, token, slot)
-    try:
-      let ws = newWebSocket(endpoint)
-      echo name, " connected (slot probe hit ", slot, ")"
-      flushFile(stdout)
-      return (ws, slot)
-    except CatchableError:
-      continue
-  # Every explicit slot refused: join with automatic assignment.
-  let endpoint = playerUrl(address, port, url, TeamPrefix, token, -1)
-  echo "slot probe exhausted; connecting with auto slot"
+proc uniqueName(): string =
+  ## A per-process name. It MUST be unique across our own seats: we
+  ## identify ourselves by reading our name tag out of the sprite
+  ## stream, and the league seats several copies of one policy, so a
+  ## shared name makes a bot track a sibling as if it were itself.
+  var rng = initRand(int(epochTime() * 1000) xor getCurrentProcessId())
+  TeamPrefix & $rng.rand(1000 .. 9999)
+
+proc connectPlayer(address: string, port: int, url, token, name: string,
+    requestedSlot: int): WebSocket =
+  ## Connects to the player socket. The hosted runner supplies the seat
+  ## and its token in the socket URL, so no slot is requested here.
+  let endpoint = playerUrl(address, port, url, name, token, requestedSlot)
+  echo name, " connecting to ", endpoint.redactedUrl()
   flushFile(stdout)
-  (newWebSocket(endpoint), -1)
+  newWebSocket(endpoint)
 
 proc runBot(address: string, port: int, url, token: string,
     slot, maxSteps: int, exitOnDisconnect: bool,
@@ -380,15 +370,18 @@ proc runBot(address: string, port: int, url, token: string,
   defer: rep.close()
   while true:
     try:
-      let (ws, mySlot) = connectWithSlot(address, port, url, token, slot)
+      let name = uniqueName()
+      let ws = connectPlayer(address, port, url, token, name, slot)
       connected = true
-      let effectiveSlot = max(mySlot, 0)
+      # The stagger id only has to differ between our own seats, so it
+      # is derived from the unique name rather than a seat index.
+      let staggerId = name[TeamPrefix.len .. ^1].parseInt() mod 8
       var bot = Bot(
-        name: TeamPrefix & $effectiveSlot,
-        slot: effectiveSlot,
+        name: name,
+        slot: staggerId,
         frameWidth: ViewportWidth,
         frameHeight: ViewportHeight,
-        brain: Brain(slot: effectiveSlot, supportWall: 2)
+        brain: Brain(slot: staggerId, supportWall: 2)
       )
       # Every seat runs for the flag: a policy holding several seats is
       # scored by the mean over them, so a parked support seat would
