@@ -7,8 +7,8 @@
 ## - The seat slot is discovered by probing ?slot=N on connect; the
 ##   server only accepts the slot whose token matches ours.
 ## - We join as "jl<slot>" so teammates can recognize each other.
-## - Slots 0-5 are real league seats and run the scoring route;
-##   slots 6-7 are fillers and man wall3 as dedicated ladders.
+## - Every seat runs the scoring route; see brain.nim for why no seat
+##   is allowed to park as a dedicated ladder.
 
 import
   std/[options, os, parseopt, strutils, tables],
@@ -23,7 +23,6 @@ const
   EngineWsEnv = "COGAMES_ENGINE_WS_URL"
   MaxDrainMessages = 64
   ReconnectDelayMs = 250
-  FillerSlotStart = 6      ## seats >= this are league fillers
 
   # World geometry (mirrors src/jumper.nim).
   WorldTileSize = 32
@@ -391,11 +390,10 @@ proc runBot(address: string, port: int, url, token: string,
         frameHeight: ViewportHeight,
         brain: Brain(slot: effectiveSlot, supportWall: 2)
       )
-      let role =
-        if effectiveSlot >= FillerSlotStart:
-          RoleSupport
-        else:
-          RoleRunner
+      # Every seat runs for the flag: a policy holding several seats is
+      # scored by the mean over them, so a parked support seat would
+      # halve our result.
+      const role = RoleRunner
       echo bot.name, " playing role ", role
       flushFile(stdout)
       var lastMask = 0xff'u8

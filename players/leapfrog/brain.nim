@@ -10,12 +10,11 @@
 ## - Three walls (x23, x38, x57) are taller than the 91 px solo jump and
 ##   need a body to climb on. League bots bounce endlessly at wall
 ##   bases; we ride a bouncing head and jump at the apex ("elevator").
-## - Our seats recognize each other by "jl<slot>" names. The lowest
-##   slot present acts as the runner; higher slots are supports that
-##   pin at choke walls as dedicated bouncing ladders.
-## - At a wall, exactly one body should own the pocket (pin + bounce)
-##   while others climb it. Between two of our bots the higher slot
-##   pins; against strangers we wait briefly, then pin ourselves.
+## - A policy holding several seats is scored by the MEAN over its
+##   seats, so no seat may sacrifice itself: every seat runs for the
+##   flag. Cooperation is emergent -- whoever reaches a wall first
+##   holds the pocket and becomes a ladder until someone arrives to
+##   climb, then climbs in turn.
 
 import std/strutils
 
@@ -271,9 +270,7 @@ proc wallMask(
   brain.rideSince = 0
   if atOwnPost:
     return brain.bounceAt(view, wall, wall.pinX)
-  var
-    mountable = false
-    lowerTeammateHere = false
+  var mountable = false
   for p in view.players:
     if p.y + BoxH <= wall.topFeet:
       continue  # already above the wall
@@ -282,13 +279,12 @@ proc wallMask(
     if p.x < wall.pocketX - 60 or p.x > wall.pocketX + 8:
       continue  # not holding the wall base
     mountable = true
-    let slot = teamSlotOf(p.name)
-    if slot >= 0 and slot < brain.slot:
-      lowerTeammateHere = true
-  if mountable and not lowerTeammateHere:
+    break
+  if mountable:
     return brain.mountMask(view, wall)
-  # Nobody at the wall base (or a lower-slot teammate is climbing and
-  # we defer to them): hold the pocket as the ladder.
+  # Nobody at the wall base: hold the pocket and bounce. This is a
+  # ladder for whoever arrives next, but it is not a sacrifice -- the
+  # moment a body shows up we re-evaluate and climb it ourselves.
   brain.bounceAt(view, wall, wall.pinX)
 
 proc runnerMask(brain: var Brain, view: WorldView): uint8 =
