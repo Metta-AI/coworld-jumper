@@ -11,7 +11,7 @@
 ##   is allowed to park as a dedicated ladder.
 
 import
-  std/[options, os, parseopt, random, strutils, tables, times],
+  std/[options, os, parseopt, strutils, sysrand, tables, times],
   whisky,
   bitworld/spriteprotocol,
   ./brain,
@@ -247,13 +247,22 @@ proc ownPlayer(bot: var Bot): Sight =
   ## Returns our own player box, identified by our unique name tag.
   ## Falls back to the closest-to-viewport-center heuristic (the
   ## server centers the camera on us) with a sticky id.
+  var
+    namedId = -1
+    namedCount = 0
   for id, item in bot.objects.pairs:
     if not id.isPlayerObjectId():
       continue
     if bot.playerName(id - PlayerObjectBase) == bot.name:
-      bot.selfKnown = true
-      bot.selfObjectId = id
-      return bot.sightFor(item)
+      namedId = id
+      inc namedCount
+  # Only trust the name tag when exactly one player wears it: if two
+  # of our seats ever draw the same name, following it would mean
+  # steering by a sibling's position.
+  if namedCount == 1:
+    bot.selfKnown = true
+    bot.selfObjectId = namedId
+    return bot.sightFor(bot.objects[namedId])
   if bot.selfKnown and bot.selfObjectId in bot.objects:
     let sight = bot.sightFor(bot.objects[bot.selfObjectId])
     if abs(sight.worldX - bot.prevWorldX) <= SelfTrackRadius and
@@ -349,8 +358,18 @@ proc uniqueName(): string =
   ## identify ourselves by reading our name tag out of the sprite
   ## stream, and the league seats several copies of one policy, so a
   ## shared name makes a bot track a sibling as if it were itself.
-  var rng = initRand(int(epochTime() * 1000) xor getCurrentProcessId())
-  TeamPrefix & $rng.rand(1000 .. 9999)
+  ## Every seat runs in its own container where the pid is always 1,
+  ## so the entropy has to come from the OS.
+  const Digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+  var bytes: array[6, byte]
+  if not urandom(bytes):
+    # Fall back to the clock; containers start milliseconds apart.
+    let stamp = int(epochTime() * 1_000_000)
+    for i in 0 ..< bytes.len:
+      bytes[i] = byte((stamp shr (i * 8)) and 0xff)
+  result = TeamPrefix
+  for b in bytes:
+    result.add(Digits[int(b) mod Digits.len])
 
 proc connectPlayer(address: string, port: int, url, token, name: string,
     requestedSlot: int): WebSocket =
@@ -375,7 +394,9 @@ proc runBot(address: string, port: int, url, token: string,
       connected = true
       # The stagger id only has to differ between our own seats, so it
       # is derived from the unique name rather than a seat index.
-      let staggerId = name[TeamPrefix.len .. ^1].parseInt() mod 8
+      var staggerId = 0
+      for ch in name[TeamPrefix.len .. ^1]:
+        staggerId = (staggerId * 31 + int(ch)) mod 8
       var bot = Bot(
         name: name,
         slot: staggerId,
