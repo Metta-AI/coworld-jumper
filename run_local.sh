@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local Jumper smoke with optional leapfrog reporter output.
+# Local Jumper smoke with optional dalli reporter output.
 #
 # Examples:
 #   ./run_local.sh
@@ -23,7 +23,7 @@ usage() {
   cat <<'EOF'
 Usage: ./run_local.sh [options]
 
-  --bots:N            Number of leapfrog bots (default 8)
+  --bots:N            Number of dalli bots (default 8)
   --max-ticks:N       End the episode after N ticks (default 1800)
   --seed:N            Game seed (default 1)
   --port:N            Server port (default 8080)
@@ -53,9 +53,9 @@ for arg in "$@"; do
   esac
 done
 
-echo "Building jumper and leapfrog..."
+echo "Building jumper and dalli..."
 nim c --path:src --outdir:out src/jumper.nim >/dev/null
-nim c --path:src --outdir:out players/leapfrog/leapfrog.nim >/dev/null
+nim c --path:src --outdir:out players/dalli/dalli.nim >/dev/null
 
 server_log="$(mktemp -t jumper-server.XXXXXX)"
 cleanup() {
@@ -97,9 +97,9 @@ if [[ "$global" -eq 1 ]]; then
 fi
 
 bot_pids=()
-echo "Launching ${bots} leapfrog bots..."
+echo "Launching ${bots} dalli bots..."
 for i in $(seq 1 "$bots"); do
-  name="lf$((i - 1))"
+  name="dl$((i - 1))"
   args=(
     --address:127.0.0.1
     --port:"$port"
@@ -111,7 +111,7 @@ for i in $(seq 1 "$bots"); do
     args+=(--report:"$report" --report-mode:"$report_mode")
     echo "Reporter on ${name}: --report:${report} --report-mode:${report_mode}"
   fi
-  ./out/leapfrog "${args[@]}" >/dev/null 2>&1 &
+  ./out/dalli "${args[@]}" >/dev/null 2>&1 &
   bot_pids+=("$!")
 done
 

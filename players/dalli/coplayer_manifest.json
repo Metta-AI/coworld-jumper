@@ -2,6 +2,7 @@
   "author": "treeform@softmax.com",
   "name": "dalli",
   "image_uri": "public.ecr.aws/s3j4p9s7/treeform/players/dalli:latest",
+  "description": "Jumper bot that runs a fixed route and climbs the three too-tall walls by riding teammates' heads.",
   "games": [
     "jumper"
   ],

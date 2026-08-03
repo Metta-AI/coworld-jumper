@@ -7,7 +7,7 @@ import
   std/[os, strformat, strutils],
   bitworld/spriteprotocol,
   jumper,
-  ../players/leapfrog/brain
+  ../players/dalli/brain
 
 const
   TileSize = 32
@@ -171,7 +171,7 @@ when isMainModule:
   of "endleg":
     # Verify the wall3-top -> flag leg: teleport the runner onto x57.
     var sim = initSimServer(seed)
-    discard sim.addPlayer("jl0")
+    discard sim.addPlayer(TeamPrefix & "0")
     var seat = Seat(kind: KindRunner)
     var inputs = newSeq[InputState](1)
     for tick in 0 ..< 300:

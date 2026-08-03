@@ -1,10 +1,10 @@
-## Leapfrog: our Jumper bot, driven by the shared brain module.
+## Dalli: our Jumper bot, driven by the shared brain module.
 ## The websocket layer decodes the sprite protocol into a WorldView
 ## (own box, grounded flag, other players with names) and sends back
 ## the brain's input mask.
 ##
 ## League integration:
-## - We join as "jl<random>". The name must be unique across our own
+## - We join as "dl<random>". The name must be unique across our own
 ##   seats: self-identification reads our name tag back out of the
 ##   sprite stream, and the league seats several copies of one policy.
 ## - Every seat runs the scoring route; see brain.nim for why no seat
@@ -418,7 +418,7 @@ proc runBot(address: string, port: int, url, token: string,
         var nextMask = 0'u8
         if viewOpt.isSome:
           nextMask = bot.brain.decide(viewOpt.get, role)
-        if getEnv("LEAPFROG_DEBUG").len > 0 and
+        if getEnv("DALLI_DEBUG").len > 0 and
             bot.frameTick mod 24 == 0:
           if viewOpt.isSome:
             let v = viewOpt.get

@@ -1,4 +1,4 @@
-## Shared decision brain for the leapfrog Jumper bot.
+## Shared decision brain for the dalli Jumper bot.
 ## Consumes an abstract WorldView (own box position, grounded flag, and
 ## visible players) and produces an input mask. The same brain runs in
 ## two hosts: tools/simlab.nim feeds it from full sim state for fast
@@ -25,7 +25,7 @@ const
   BoxW* = 20
   BoxH* = 23
   JumpRise* = 91          ## exact solo jump rise in px
-  TeamPrefix* = "jl"
+  TeamPrefix* = "dl"
 
   ## Input mask bits (identical to bitworld spriteprotocol buttons:
   ## Left = bit 2, Right = bit 3, A/jump = bit 5).

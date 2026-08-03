@@ -34,7 +34,7 @@ RUN nimby sync nimby.lock -g
 
 ARG NimFlags="-d:release -d:useMalloc --opt:speed --stackTrace:on"
 ARG NimCommand="c"
-ARG NimMain="players/dalli.nim"
+ARG NimMain="players/dalli/dalli.nim"
 RUN nim $NimCommand \
   $NimFlags \
   --path:src \

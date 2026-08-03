@@ -8,7 +8,7 @@ echo "Testing Jumper"
 doAssert fileExists("coworld_manifest_template.json"), "manifest template should exist"
 doAssert fileExists("data/forest.tmx"), "map should exist"
 doAssert fileExists("data/spritesheet.png"), "spritesheet should exist"
-doAssert fileExists("players/dalli.nim"), "dalli bot should exist"
+doAssert fileExists("players/dalli/dalli.nim"), "dalli bot should exist"
 
 import std/json
 import bitworld/spriteprotocol
