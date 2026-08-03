@@ -120,6 +120,9 @@ const
   StageWaitTicks = 60     ## patience before pinning despite strangers
   ApexMargin = 14         ## required clearance above the wall lip
   RidePatience = 48       ## ticks on a head before nudging the carrier
+  PitLookAhead = 96       ## how far ahead the generic pit guard scans
+  PitDrop = 56            ## ground deeper than this reads as a pit
+  PitTrigger = 40         ## jump when a pit edge is this close
 
 proc feet(view: WorldView): int =
   view.ownY + BoxH
@@ -167,6 +170,28 @@ proc pinnedLadder(view: WorldView, wall: Wall): int =
       continue  # already above the wall
     if abs(p.x - wall.pocketX) <= LadderTol:
       return i
+
+proc groundWithin(x, footY, drop: int): bool =
+  ## True when solid ground sits under one world x within `drop` px.
+  var dy = 0
+  while dy <= drop:
+    if solidTile(x div TileSize, (footY + dy) div TileSize):
+      return true
+    dy += 8
+  false
+
+proc pitDistance(front, feet: int): int =
+  ## Pixels from our front edge to the first bottomless column ahead,
+  ## or -1 when the ground holds for the whole look-ahead window.
+  var dx = 0
+  while dx <= PitLookAhead:
+    let x = front + dx
+    if x >= LevelWidthTiles * TileSize:
+      return -1
+    if not groundWithin(x, feet + 1, PitDrop):
+      return dx
+    dx += 4
+  -1
 
 proc walkMask(brain: var Brain, view: WorldView, targetX: int): uint8 =
   ## Walks toward a target x with a stuck-hop when blocked by a small
@@ -332,6 +357,14 @@ proc runnerMask(brain: var Brain, view: WorldView): uint8 =
     for (a, b) in JumpWindows:
       if front >= a and front < b:
         return MaskRight or brain.jumpButton()
+    # Generic pit guard. The hardcoded windows assume we reach each
+    # takeoff running along the expected ground; a shove, an odd spawn,
+    # or a bad landing can drop us at an edge outside every window, and
+    # replays show that walking straight into pits x9, x29 and x35 is
+    # the single biggest source of deaths.
+    let pit = pitDistance(front, feet)
+    if pit >= 0 and pit <= PitTrigger:
+      return MaskRight or brain.jumpButton()
     # Stuck fallback: hop when we have not advanced for a second.
     if x > brain.lastProgressX:
       brain.lastProgressX = x
@@ -359,10 +392,12 @@ proc runnerMask(brain: var Brain, view: WorldView): uint8 =
   # right so full-speed flight cannot overshoot into pit x35-36.
   if brain.velY > 0 and x >= 1020 and x < 1108 and feet > 380:
     return 0
-  # Falling from spawn: stop short of pit x9 so the drop cannot carry
-  # us past the jump window.
-  if brain.velY > 0 and x + BoxW >= 258 and x < 320 and feet < 470:
-    return 0
+  # Falling toward an edge with ground under us: release forward so we
+  # land on the near lip instead of drifting into the hole.
+  if brain.velY > 0:
+    let pit = pitDistance(front, feet)
+    if pit >= 0 and pit <= 24 and groundWithin(x + BoxW div 2, feet + 1, PitDrop):
+      return 0
   MaskRight
 
 proc supportMask(brain: var Brain, view: WorldView): uint8 =
