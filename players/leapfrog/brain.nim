@@ -95,6 +95,7 @@ type
     climbLastMoveTick: int
     leftEscapeTick: int
     apexJumpTick: int
+    rideSince: int
     stageWaitSince: int
     supportWall*: int   ## wall index this support mans
 
@@ -119,6 +120,7 @@ const
   ZoneReach = 200         ## wall approach zone, px left of the wall
   StageWaitTicks = 60     ## patience before pinning despite strangers
   ApexMargin = 14         ## required clearance above the wall lip
+  RidePatience = 48       ## ticks on a head before nudging the carrier
 
 proc feet(view: WorldView): int =
   view.ownY + BoxH
@@ -252,8 +254,21 @@ proc wallMask(
         # Latch the crossing: hold right until we land so the wall
         # logic cannot steer us back mid-flight.
         brain.apexJumpTick = brain.tick
+        brain.rideSince = 0
       return MaskRight or button
+    # Riding, but too low to clear: a carrier standing flat on the
+    # wall3 approach leaves us 14 px short, so we only get over when it
+    # bounces. A carrier that never bounces is a deadlock -- replays
+    # show 1932 ticks spent on one. Nudge periodically: the hop keeps
+    # us pinned against the wall face and may catch the carrier's own
+    # rise on the way back down.
+    if brain.rideSince == 0:
+      brain.rideSince = brain.tick
+    elif view.grounded and brain.tick - brain.rideSince > RidePatience:
+      brain.rideSince = brain.tick
+      return MaskRight or brain.jumpButton()
     return 0
+  brain.rideSince = 0
   if atOwnPost:
     return brain.bounceAt(view, wall, wall.pinX)
   var
