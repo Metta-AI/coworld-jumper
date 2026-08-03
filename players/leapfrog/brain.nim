@@ -206,6 +206,22 @@ proc travelMask(
       return MaskLeft or brain.jumpButton()
   brain.walkMask(view, targetX)
 
+proc mountMask(brain: var Brain, view: WorldView, wall: Wall): uint8 =
+  ## Mount protocol: back off to staging, then jump right INTO the
+  ## wall face. We pin against the wall mid-air and slide down onto
+  ## whatever body owns the pocket, which puts us on its head.
+  if not view.grounded:
+    return MaskRight
+  if view.ownX > wall.stageX + 8:
+    if wall.takeoffB > 0 and view.ownX >= 1150:
+      # Wall2: no ground walk-back, jump the pit leftward.
+      brain.leftEscapeTick = brain.tick
+      return MaskLeft or brain.jumpButton()
+    return brain.walkMask(view, wall.stageX)
+  if view.ownX < wall.stageX - 6:
+    return brain.walkMask(view, wall.stageX)
+  MaskRight or brain.jumpButton()
+
 proc bounceAt(brain: var Brain, view: WorldView, wall: Wall,
     postX: int): uint8 =
   ## Ladder duty: hold a spot near the wall and bounce on a
@@ -241,30 +257,23 @@ proc wallMask(
   if atOwnPost:
     return brain.bounceAt(view, wall, wall.pinX)
   var
-    bestSupportX = int.low
-    bestSupportSlot = -1
-    frontAheadX = int.low
+    mountable = false
+    lowerTeammateHere = false
   for p in view.players:
     if p.y + BoxH <= wall.topFeet:
       continue  # already above the wall
     if p.y + 4 < view.ownY and abs(p.x - view.ownX) < BoxW:
       continue  # directly above us: a rider, not a ladder
-    if p.x < wall.stageX - 70 or p.x > wall.pocketX + 8:
-      continue  # not contesting this wall
+    if p.x < wall.pocketX - 60 or p.x > wall.pocketX + 8:
+      continue  # not holding the wall base
+    mountable = true
     let slot = teamSlotOf(p.name)
-    if slot > brain.slot:
-      # More sacrificial teammate: preferred ladder from any side.
-      if slot > bestSupportSlot or
-          (slot == bestSupportSlot and p.x > bestSupportX):
-        bestSupportSlot = slot
-        bestSupportX = p.x
-    if p.x > view.ownX + 4:
-      frontAheadX = max(frontAheadX, p.x)
-  if bestSupportSlot >= 0:
-    return brain.travelMask(view, wall, bestSupportX)
-  if frontAheadX != int.low:
-    return brain.travelMask(view, wall, frontAheadX)
-  # We are the frontmost with nobody to mount: serve as the ladder.
+    if slot >= 0 and slot < brain.slot:
+      lowerTeammateHere = true
+  if mountable and not lowerTeammateHere:
+    return brain.mountMask(view, wall)
+  # Nobody at the wall base (or a lower-slot teammate is climbing and
+  # we defer to them): hold the pocket as the ladder.
   brain.bounceAt(view, wall, wall.pinX)
 
 proc runnerMask(brain: var Brain, view: WorldView): uint8 =
