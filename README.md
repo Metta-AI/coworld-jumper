@@ -36,7 +36,8 @@ nim c --path:src players/dalli.nim
 Build the finite, headless bridge with the pinned Nimby dependencies:
 
 ```bash
-nimby sync nimby.lock -g
+(cd .. && nimby create)
+nimby sync nimby.lock
 mkdir -p out
 nim c -d:release --path:src --out:out/jumper-training-bridge src/jumper/training_bridge.nim
 ```
