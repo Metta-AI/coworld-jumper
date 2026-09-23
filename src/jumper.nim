@@ -1227,6 +1227,43 @@ proc cameraYFor(sim: SimServer, player: Actor): int =
     LevelHeightPixels - ViewportHeight
   )
 
+proc trainingVisibleValues*(sim: SimServer, playerIndex: int): seq[float] =
+  ## Fixed numeric encoding of the tiles and actors in this player's viewport.
+  ## These are the same positions and tile GIDs sent by the sprite protocol.
+  let
+    player = sim.players[playerIndex]
+    cameraX = sim.cameraXFor(player)
+    cameraY = sim.cameraYFor(player)
+    startTx = max(0, cameraX div WorldTileSize)
+    startTy = max(0, cameraY div WorldTileSize)
+    endTx = min(LevelWidthTiles - 1, (cameraX + ViewportWidth - 1) div WorldTileSize)
+    endTy = min(LevelHeightTiles - 1, (cameraY + ViewportHeight - 1) div WorldTileSize)
+  for dy in 0 ..< 8:
+    for dx in 0 ..< 11:
+      let
+        tx = startTx + dx
+        ty = startTy + dy
+      result.add(
+        if tx <= endTx and ty <= endTy:
+          sim.tileGids[tileIndex(tx, ty)].float / 255.0
+        else:
+          0.0
+      )
+  for i, actor in sim.players:
+    let visible =
+      not actor.dead and actor.x >= cameraX - PlayerBoxWidth and
+      actor.x < cameraX + ViewportWidth and
+      actor.y >= cameraY - PlayerBoxHeight and
+      actor.y < cameraY + ViewportHeight
+    result.add(if visible: 1.0 else: 0.0)
+    result.add(if visible: (actor.x - cameraX).float / ViewportWidth.float else: 0.0)
+    result.add(if visible: (actor.y - cameraY).float / ViewportHeight.float else: 0.0)
+    result.add(if i == playerIndex: 1.0 else: 0.0)
+
+proc trainingProgress*(sim: SimServer, playerIndex: int): int =
+  ## Furthest horizontal position is useful for finite training episodes.
+  sim.players[playerIndex].x
+
 proc animationFrame(sim: SimServer, player: Actor): PlayerFrame =
   ## Returns the current animation frame for one player.
   if not player.onGround:
