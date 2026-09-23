@@ -22,7 +22,8 @@ jobs:
         run: |
           cd ..
           nimby create
-          nimby install "${{ github.event.repository.name }}/jumper.nimble"
+          ln -s "$GITHUB_WORKSPACE" jumper
+          nimby install "jumper/jumper.nimble"
           nimby sync "$GITHUB_WORKSPACE/nimby.lock"
       - run: nim check src/jumper.nim
       - run: nim r tests/tests.nim
