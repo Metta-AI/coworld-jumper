@@ -17,6 +17,11 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libudev-dev libevdev-dev
       - uses: treeform/setup-nim-action@v6
-      - run: nimby sync nimby.lock -g
+      - name: Install dependencies
+        shell: bash
+        run: |
+          cd ..
+          nimby create
+          nimby sync "$GITHUB_WORKSPACE/nimby.lock"
       - run: nim check src/jumper.nim
       - run: nim r tests/tests.nim
