@@ -15,6 +15,11 @@ def episode(process, seed):
     observation = request(process, {"kind": "reset", "seed": seed, "players": 3})
     assert observation["kind"] == "decision"
     first_encoding = request(process, {"kind": "encode"})
+    assert set(observation) == {
+        "kind", "game", "decision_id", "seat", "engine_seat", "turn", "semantic_view",
+        "inbox", "messages", "speech_messages", "action_schema", "typed_question",
+    }
+    assert observation["semantic_view"]["values"] == first_encoding["values"]
     assert len(first_encoding["values"]) == 100
     assert len(first_encoding["actions"]) == 6
 

@@ -27,17 +27,23 @@ var
 
 proc decision(): JsonNode =
   let values = sim.trainingVisibleValues(actingSeat)
-  %*{
+  result = %*{
     "kind": "decision",
+    "game": "jumper",
     "decision_id": decisionId,
     "seat": actingSeat,
+    "engine_seat": actingSeat,
     "turn": sim.tickCount,
+    "semantic_view": {"values": values},
+    "inbox": [],
     "messages": [{
       "role": "user",
       "content": $(%*{"values": values, "actions": Masks}),
     }],
+    "speech_messages": [],
     "action_schema": {"type": "object", "mask": "one of the listed input masks"},
   }
+  result["typed_question"] = newJNull()
 
 proc encoding(): JsonNode =
   var actions = newJArray()
