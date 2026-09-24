@@ -25,3 +25,5 @@ jobs:
           nimby sync "$GITHUB_WORKSPACE/nimby.lock"
       - run: nim check src/jumper.nim
       - run: nim r tests/tests.nim
+      - run: nim c --path:src --out:/tmp/jumper-training-bridge src/jumper/training_bridge.nim
+      - run: python3 tests/training_bridge.py /tmp/jumper-training-bridge "$PWD"
